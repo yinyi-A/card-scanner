@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>명함 스캐너</title>
+<style>
+  :root {
+    --blue: #1a73e8; --blue-lt: #e8f0fe; --green: #34a853;
+    --txt1: #1f1f1f; --txt2: #5f6368; --txt3: #9aa0a6;
+    --bg: #f1f3f4; --card: #ffffff; --border: #dadce0;
+    --hh: 110px; --th: 120px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { font-family: 'Noto Sans KR', -apple-system, sans-serif; background: var(--bg); }
+
+  .hdr {
+    background: var(--blue); color: #fff; height: var(--hh); padding: 0 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+  }
+  .hdr-title { font-size: 56px; font-weight: 700; }
+  .hdr-cnt { background: rgba(255,255,255,0.2); padding: 12px 26px; border-radius: 36px; font-size: 44px; font-weight: 700; }
+
+  .tabs {
+    position: fixed; top: var(--hh); left: 0; right: 0;
+    height: var(--th); background: #fff; display: flex;
+    border-bottom: 3px solid var(--border); z-index: 99;
+  }
+  .tab {
+    flex: 1; display: flex; align-items: center; justify-content: center;
+    gap: 12px; font-size: 72px; font-weight: 600; color: var(--txt3);
+    cursor: pointer; border-bottom: 5px solid transparent;
+  }
+  .tab.on { color: var(--blue); border-bottom-color: var(--blue); }
+
+  .wrap { padding-top: calc(var(--hh) + var(--th)); min-height: 100vh; }
+  .pg { display: none; }
+  .pg.on { display: block; }
+
+  .scan-home {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 32px; padding: 48px 24px;
+    min-height: calc(100vh - var(--hh) - var(--th));
+  }
+  .scan-ttl { font-size: 44px; font-weight: 400; color: var(--txt1); text-align: center; }
+  .scan-sub  { font-size: 44px; font-weight: 400; color: var(--txt2); text-align: center; }
+
+  .big-btn {
+    width: 100%; padding: 48px 24px; border-radius: 24px;
+    border: 3px dashed var(--blue); background: var(--blue-lt); color: var(--blue);
+    font-size: 44px; font-weight: 400; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 16px;
+    text-decoration: none;
+  }
+  .big-btn.grn { border-color: var(--green); background: #e6f4ea; color: var(--green); }
+  .big-btn:active { opacity: 0.75; }
+  .big-btn .ico { font-size: 120px; line-height: 1; }
+
+  .preview { display: none; padding: 24px; background: #fff; }
+  .preview img { width: 100%; border-radius: 20px; max-height: 320px; object-fit: cover; }
+  .ocr-btn {
+    width: 100%; margin-top: 20px; padding: 36px;
+    background: var(--blue); color: #fff; border: none; border-radius: 20px;
+    font-size: 44px; font-weight: 400; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    box-shadow: 0 4px 16px rgba(26,115,232,0.4);
+  }
+  .ocr-btn:disabled { background: #ccc; box-shadow: none; }
+
+  .loading {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 28px; padding: 60px 24px;
+    min-height: calc(100vh - var(--hh) - var(--th));
+  }
+  .spin { width: 96px; height: 96px; border: 8px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading p { font-size: 44px; font-weight: 400; color: var(--txt2); text-align: center; }
+
+  .form { padding: 28px 24px 100px; }
+  .form-ttl { font-size: 44px; font-weight: 400; margin-bottom: 32px; }
+  .sec-lbl { font-size: 44px; font-weight: 400; color: var(--blue); margin: 36px 0 16px; padding-bottom: 12px; border-bottom: 3px solid var(--blue-lt); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .fg { margin-bottom: 16px; }
+  .fg label { display: block; font-size: 44px; font-weight: 400; color: var(--txt2); margin-bottom: 10px; }
+  .fg input, .fg textarea {
+    width: 100%; padding: 20px 22px; border: 2px solid var(--border); border-radius: 14px;
+    font-size: 44px; color: var(--txt1); background: #fafafa; -webkit-appearance: none;
+  }
+  .fg input:focus, .fg textarea:focus { outline: none; border-color: var(--blue); background: #fff; }
+  .fg textarea { resize: vertical; min-height: 110px; }
+  .save-btn {
+    width: 100%; padding: 36px; background: var(--green); color: #fff;
+    border: none; border-radius: 20px; font-size: 44px; font-weight: 400;
+    cursor: pointer; margin-top: 36px; box-shadow: 0 4px 16px rgba(52,168,83,0.4);
+  }
+  .save-btn:disabled { background: #ccc; box-shadow: none; }
+  .back-btn {
+    width: 100%; padding: 28px; background: #fff; color: var(--txt2);
+    border: 2px solid var(--border); border-radius: 20px;
+    font-size: 44px; font-weight: 400; cursor: pointer; margin-top: 16px;
+  }
+
+  .list-pg { padding: 20px 24px 100px; }
+  .srch { position: relative; margin-bottom: 20px; }
+  .srch input { width: 100%; padding: 22px 22px 22px 72px; border: 2px solid var(--border); border-radius: 20px; font-size: 44px; background: #fff; -webkit-appearance: none; }
+  .srch-ico { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); font-size: 44px; }
+
+  .cards { display: flex; flex-direction: column; gap: 18px; }
+  .card { background: var(--card); border-radius: 20px; padding: 28px 22px; box-shadow: 0 2px 10px rgba(0,0,0,0.07); border-left: 8px solid var(--blue); cursor: pointer; }
+  .card:active { opacity: 0.85; }
+  .c-name { font-size: 56px; font-weight: 400; color: var(--txt1); }
+  .c-name-en { font-size: 56px; font-weight: 400; color: var(--txt3); margin-top: 6px; }
+  .c-company { font-size: 56px; font-weight: 400; color: var(--blue); margin-top: 12px; }
+  .c-sub { font-size: 56px; font-weight: 400; color: var(--txt2); margin-top: 6px; }
+  .c-contacts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+  .c-chip { font-size: 56px; font-weight: 400; color: var(--txt2); background: var(--bg); padding: 8px 18px; border-radius: 28px; display: flex; align-items: center; gap: 6px; }
+  .c-date { font-size: 56px; font-weight: 400; color: var(--txt3); margin-top: 12px; }
+
+  .empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; color: var(--txt3); text-align: center; min-height: calc(100vh - var(--hh) - var(--th) - 80px); }
+  .empty .eico { font-size: 120px; }
+  .empty p { font-size: 44px; font-weight: 400; }
+  .empty p.sub { font-size: 44px; font-weight: 400; }
+
+  .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; }
+  .overlay.on { display: flex; align-items: flex-end; }
+  .sheet { background: #fff; width: 100%; border-radius: 28px 28px 0 0; max-height: 90vh; overflow-y: auto; padding: 16px 28px 64px; animation: up .25s ease; }
+  @keyframes up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  .handle { width: 56px; height: 6px; background: var(--border); border-radius: 3px; margin: 0 auto 28px; }
+  .m-name { font-size: 60px; font-weight: 400; color: var(--txt1); }
+  .m-name-en { font-size: 44px; font-weight: 400; color: var(--txt3); margin-top: 8px; }
+  .m-company { font-size: 50px; font-weight: 400; color: var(--blue); margin-top: 16px; }
+  .m-pos { font-size: 44px; font-weight: 400; color: var(--txt2); margin-top: 8px; }
+  .m-div { height: 2px; background: var(--border); margin: 24px 0; }
+  .m-rows { display: flex; flex-direction: column; gap: 14px; }
+  .m-row { display: flex; align-items: center; gap: 18px; padding: 20px 22px; background: var(--bg); border-radius: 16px; }
+  .m-ico { font-size: 44px; width: 52px; text-align: center; flex-shrink: 0; }
+  .m-lbl { font-size: 32px; font-weight: 400; color: var(--txt3); margin-bottom: 6px; }
+  .m-val { font-size: 44px; font-weight: 400; color: var(--txt1); }
+  .m-val a { color: var(--blue); text-decoration: none; }
+  .m-acts { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-top: 32px; }
+  .m-act { padding: 26px 8px; border-radius: 18px; border: none; font-size: 36px; font-weight: 400; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .m-act:active { opacity: 0.75; }
+  .m-act .aico { font-size: 56px; }
+  .act-call { background: #e8f5e9; color: #2e7d32; }
+  .act-mail { background: #e3f2fd; color: #1565c0; }
+  .act-cont { background: #f3e5f5; color: #6a1b9a; }
+  .act-del  { background: #fce4ec; color: #c62828; }
+
+  .toast { position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%) translateY(16px); background: rgba(32,33,36,0.9); color: #fff; padding: 20px 36px; border-radius: 44px; font-size: 36px; font-weight: 400; z-index: 300; opacity: 0; transition: all .3s; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
+  input[type=file] { position: absolute; left: -9999px; opacity: 0; }
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="hdr-title">&#128203; 명함 스캐너</div>
+  <div class="hdr-cnt" id="cnt">0장</div>
+</div>
+
+<div class="tabs">
+  <div class="tab on" id="t-scan" onclick="go('scan')"><span>&#128247;</span> 스캔</div>
+  <div class="tab"    id="t-list" onclick="go('list')"><span>&#128203;</span> 목록</div>
+</div>
+
+<div class="wrap">
+  <div class="pg on" id="pg-scan">
+
+    <div class="scan-home" id="s-home">
+      <div class="scan-ttl">명함을 스캔하세요</div>
+      <div class="scan-sub">카메라 촬영 또는 사진을 업로드하세요</div>
+      <label class="big-btn" for="fi-cam">
+        <span class="ico">&#128247;</span>카메라로 촬영
+      </label>
+      <label class="big-btn grn" for="fi-file">
+        <span class="ico">&#128444;</span>사진 업로드
+      </label>
+      <input type="file" id="fi-cam"  accept="image/*" capture="environment">
+      <input type="file" id="fi-file" accept="image/*">
+    </div>
+
+    <div class="preview" id="s-prev">
+      <img id="prev-img" src="" alt="">
+      <button class="ocr-btn" onclick="doOCR()">&#129302; AI로 명함 정보 추출하기</button>
+    </div>
+
+    <div class="loading" id="s-load" style="display:none">
+      <div class="spin"></div>
+      <p>AI가 명함을 읽는 중...</p>
+    </div>
+
+    <div class="form" id="s-form" style="display:none">
+      <div class="form-ttl">&#9989; 정보 확인 및 수정</div>
+      <div class="sec-lbl">&#128100; 이름</div>
+      <div class="row2">
+        <div class="fg"><label>한글</label><input id="f-name_ko" type="text" placeholder="홍길동"></div>
+        <div class="fg"><label>영문</label><input id="f-name_en" type="text" placeholder="Hong Gil"></div>
+      </div>
+      <div class="sec-lbl">&#127970; 회사</div>
+      <div class="row2">
+        <div class="fg"><label>회사명(한글)</label><input id="f-company_ko" type="text"></div>
+        <div class="fg"><label>회사명(영문)</label><input id="f-company_en" type="text"></div>
+      </div>
+      <div class="row2">
+        <div class="fg"><label>직책(한글)</label><input id="f-title_ko" type="text"></div>
+        <div class="fg"><label>직책(영문)</label><input id="f-title_en" type="text"></div>
+      </div>
+      <div class="row2">
+        <div class="fg"><label>부서(한글)</label><input id="f-dept_ko" type="text"></div>
+        <div class="fg"><label>부서(영문)</label><input id="f-dept_en" type="text"></div>
+      </div>
+      <div class="sec-lbl">&#128222; 연락처</div>
+      <div class="row2">
+        <div class="fg"><label>휴대전화</label><input id="f-mobile" type="tel"></div>
+        <div class="fg"><label>유선전화</label><input id="f-phone"  type="tel"></div>
+      </div>
+      <div class="row2">
+        <div class="fg"><label>팩스</label><input id="f-fax" type="tel"></div>
+        <div class="fg"><label>이메일</label><input id="f-email" type="email"></div>
+      </div>
+      <div class="sec-lbl">&#127758; 기타</div>
+      <div class="fg"><label>주소</label><input id="f-address" type="text"></div>
+      <div class="fg"><label>웹사이트</label><input id="f-website" type="url"></div>
+      <div class="fg"><label>메모</label><textarea id="f-memo"></textarea></div>
+      <button class="save-btn" id="save-btn" onclick="doSave()">&#128190; 구글 시트에 저장하기</button>
+      <button class="back-btn" onclick="doReset()">&#128260; 처음으로</button>
+    </div>
+
+  </div>
+
+  <div class="pg" id="pg-list">
+    <div class="list-pg">
+      <div class="srch">
+        <span class="srch-ico">&#128269;</span>
+        <input id="srch-inp" type="text" placeholder="이름, 회사명으로 검색..." oninput="doFilter()">
+      </div>
+      <div class="cards" id="cards-wrap">
+        <div class="empty">
+          <div class="eico">&#128203;</div>
+          <p>불러오는 중...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="closeModal(event)">
+  <div class="sheet"><div class="handle"></div><div id="modal-body"></div></div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── 설정 ─────────────────────────────────────────────────
+var GEM_KEY = 'AIzaSyAnX09iudBtV3kBLDl0o5WYaYMTMOqxJW0';
+var GEM_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=' + GEM_KEY;
+var API_URL = 'https://script.google.com/macros/s/AKfycbxz7QTEjoblxnY4oMIodf5c34NjNWTWrIhlkG-JkXEB9MS3Lv5F5qD6qB65lEsHv0sd2g/exec';
+
+var FIELDS  = ['name_ko','name_en','company_ko','company_en','title_ko','title_en',
+               'dept_ko','dept_en','email','mobile','phone','fax','address','website','memo'];
+var imgB64  = null;
+var imgMime = null;
+var allCards = [];
+
+// ── 초기 로드 ─────────────────────────────────────────────
+window.onload = function() { loadCards(); };
+
+// ── 탭 전환 ──────────────────────────────────────────────
+function go(tab) {
+  document.getElementById('t-scan').className  = 'tab' + (tab==='scan'?' on':'');
+  document.getElementById('t-list').className  = 'tab' + (tab==='list'?' on':'');
+  document.getElementById('pg-scan').className = 'pg'  + (tab==='scan'?' on':'');
+  document.getElementById('pg-list').className = 'pg'  + (tab==='list'?' on':'');
+  if (tab === 'list') loadCards();
+}
+
+// ── 파일 입력 ─────────────────────────────────────────────
+function setupFile(id) {
+  document.getElementById(id).addEventListener('change', function(e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) return;
+    imgMime = f.type || 'image/jpeg';
+    var reader = new FileReader();
+    reader.onload = function(ev) {
+      imgB64 = ev.target.result.split(',')[1];
+      document.getElementById('prev-img').src = ev.target.result;
+      document.getElementById('s-home').style.display = 'none';
+      document.getElementById('s-prev').style.display = 'block';
+    };
+    reader.readAsDataURL(f);
+  });
+}
+setupFile('fi-cam');
+setupFile('fi-file');
+
+// ── OCR ──────────────────────────────────────────────────
+function doOCR() {
+  if (!imgB64) { toast('이미지를 먼저 선택하세요'); return; }
+  document.getElementById('s-prev').style.display = 'none';
+  document.getElementById('s-load').style.display = 'flex';
+
+  var prompt = '명함 이미지에서 정보를 추출해 JSON만 출력하세요. '
+    + '코드블록 없이 순수 JSON만. 빈 필드는 "". 전화번호는 원래 형식. '
+    + '한글만 있으면 _ko만, 영문만 있으면 _en만, 둘다 있으면 각각. '
+    + '{"name_ko":"","name_en":"","company_ko":"","company_en":"","title_ko":"","title_en":"",'
+    + '"dept_ko":"","dept_en":"","email":"","mobile":"","phone":"","fax":"","address":"","website":"","memo":""}';
+
+  fetch(GEM_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [
+        { inline_data: { mime_type: imgMime, data: imgB64 } },
+        { text: prompt }
+      ]}],
+      generationConfig: { temperature: 0.1 }
+    })
+  })
+  .then(function(r) { if (!r.ok) throw new Error('Gemini ' + r.status); return r.json(); })
+  .then(function(j) {
+    var t = j.candidates[0].content.parts[0].text;
+    t = t.replace(/```json/gi,'').replace(/```/g,'').trim();
+    var d = JSON.parse(t);
+    FIELDS.forEach(function(k) { var e = document.getElementById('f-'+k); if(e) e.value = d[k]||''; });
+    document.getElementById('s-load').style.display = 'none';
+    document.getElementById('s-form').style.display = 'block';
+    window.scrollTo(0, 0);
+  })
+  .catch(function(e) {
+    document.getElementById('s-load').style.display = 'none';
+    document.getElementById('s-prev').style.display = 'block';
+    toast('OCR 오류: ' + e.message);
+  });
+}
+
+// ── 저장 ─────────────────────────────────────────────────
+function doSave() {
+  var info = {};
+  FIELDS.forEach(function(k) { var e = document.getElementById('f-'+k); info[k] = e ? e.value.trim() : ''; });
+  if (!info.name_ko && !info.name_en) { toast('이름을 입력해주세요'); return; }
+
+  var btn = document.getElementById('save-btn');
+  btn.disabled = true; btn.textContent = '저장 중...';
+
+  fetch(API_URL, {
+    method: 'POST',
+    mode: 'cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'saveCard', info: info })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.error) throw new Error(res.error);
+    toast('저장 완료!');
+    info.rowIndex = res.rowIndex;
+    info.reg_date = new Date().toISOString().split('T')[0];
+    allCards.push(info);
+    document.getElementById('cnt').textContent = allCards.length + '장';
+    setTimeout(doReset, 1500);
+  })
+  .catch(function(e) {
+    toast('저장 오류: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '구글 시트에 저장하기';
+  });
+}
+
+// ── 초기화 ───────────────────────────────────────────────
+function doReset() {
+  imgB64 = null; imgMime = null;
+  document.getElementById('s-form').style.display = 'none';
+  document.getElementById('s-load').style.display = 'none';
+  document.getElementById('s-prev').style.display = 'none';
+  document.getElementById('s-home').style.display = 'flex';
+  document.getElementById('fi-cam').value  = '';
+  document.getElementById('fi-file').value = '';
+  document.getElementById('save-btn').disabled = false;
+  document.getElementById('save-btn').textContent = '구글 시트에 저장하기';
+  window.scrollTo(0, 0);
+}
+
+// ── 목록 불러오기 ─────────────────────────────────────────
+function loadCards() {
+  fetch(API_URL + '?action=getCards')
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.error) throw new Error(res.error);
+    allCards = res.data || [];
+    document.getElementById('cnt').textContent = allCards.length + '장';
+    renderCards(allCards);
+  })
+  .catch(function(e) {
+    document.getElementById('cards-wrap').innerHTML =
+      '<div class="empty"><div class="eico">&#9888;</div><p>' + e.message + '</p></div>';
+  });
+}
+
+// ── 렌더링 ───────────────────────────────────────────────
+function renderCards(list) {
+  if (!list.length) {
+    document.getElementById('cards-wrap').innerHTML =
+      '<div class="empty"><div class="eico">&#128203;</div>'
+      + '<p>등록된 명함이 없습니다</p><p class="sub">스캔 탭에서 추가하세요</p></div>';
+    return;
+  }
+  var h = '';
+  list.forEach(function(c) {
+    var nm  = c.name_ko||c.name_en||'이름없음';
+    var co  = c.company_ko||c.company_en||'';
+    var sub = [c.title_ko||c.title_en, c.dept_ko||c.dept_en].filter(Boolean).join(' · ');
+    var en  = (c.name_ko&&c.name_en) ? '<div class="c-name-en">'+c.name_en+'</div>' : '';
+    var ct  = '';
+    if (c.mobile) ct += '<span class="c-chip">&#128241; '+c.mobile+'</span>';
+    if (c.email)  ct += '<span class="c-chip">&#9993; '+c.email+'</span>';
+    h += '<div class="card" onclick="openModal('+c.rowIndex+')">';
+    h += '<div class="c-name">'+nm+'</div>'+en;
+    h += '<div class="c-company">'+co+'</div>';
+    h += '<div class="c-sub">'+sub+'</div>';
+    h += '<div class="c-contacts">'+ct+'</div>';
+    h += '<div class="c-date">등록일: '+c.reg_date+'</div>';
+    h += '</div>';
+  });
+  document.getElementById('cards-wrap').innerHTML = h;
+}
+
+// ── 검색 ────────────────────────────────────────────────
+function doFilter() {
+  var q = document.getElementById('srch-inp').value.toLowerCase();
+  if (!q) { renderCards(allCards); return; }
+  renderCards(allCards.filter(function(c) {
+    return (c.name_ko||'').toLowerCase().includes(q)
+        || (c.name_en||'').toLowerCase().includes(q)
+        || (c.company_ko||'').toLowerCase().includes(q)
+        || (c.company_en||'').toLowerCase().includes(q)
+        || (c.email||'').toLowerCase().includes(q);
+  }));
+}
+
+// ── 모달 ─────────────────────────────────────────────────
+function openModal(idx) {
+  var c = allCards.find(function(x) { return x.rowIndex === idx; });
+  if (!c) return;
+  var nm  = c.name_ko||c.name_en||'이름없음';
+  var co  = c.company_ko||c.company_en||'';
+  var pos = [c.title_ko||c.title_en, c.dept_ko||c.dept_en].filter(Boolean).join(' · ');
+  var h = '<div class="m-name">'+nm+'</div>';
+  if (c.name_ko&&c.name_en) h += '<div class="m-name-en">'+c.name_en+'</div>';
+  if (co)  h += '<div class="m-company">'+co+'</div>';
+  if (pos) h += '<div class="m-pos">'+pos+'</div>';
+  h += '<div class="m-div"></div><div class="m-rows">';
+  if (c.mobile)  h += mRow('&#128241;','휴대전화','<a href="tel:'+c.mobile+'">'+c.mobile+'</a>');
+  if (c.phone)   h += mRow('&#128222;','유선전화','<a href="tel:'+c.phone+'">'+c.phone+'</a>');
+  if (c.fax)     h += mRow('&#128224;','팩스',c.fax);
+  if (c.email)   h += mRow('&#9993;','이메일','<a href="mailto:'+c.email+'">'+c.email+'</a>');
+  if (c.address) h += mRow('&#128205;','주소',c.address);
+  if (c.website) h += mRow('&#127760;','웹사이트','<a href="'+c.website+'" target="_blank">'+c.website+'</a>');
+  if (c.memo)    h += mRow('&#128221;','메모',c.memo);
+  h += '</div><div class="m-acts">';
+  h += c.mobile ? '<button class="m-act act-call" onclick="location.href=\'tel:'+c.mobile+'\'"><span class="aico">&#128241;</span>전화</button>' : '<div></div>';
+  h += c.email  ? '<button class="m-act act-mail" onclick="location.href=\'mailto:'+c.email+'\'"><span class="aico">&#9993;</span>메일</button>' : '<div></div>';
+  h += '<button class="m-act act-cont" onclick="addContact('+idx+')"><span class="aico">&#128100;</span>주소록</button>';
+  h += '<button class="m-act act-del"  onclick="doDelete('+idx+')"><span class="aico">&#128465;</span>삭제</button>';
+  h += '</div>';
+  document.getElementById('modal-body').innerHTML = h;
+  document.getElementById('overlay').classList.add('on');
+}
+
+function mRow(ico, lbl, val) {
+  return '<div class="m-row"><span class="m-ico">'+ico+'</span>'
+    + '<div><div class="m-lbl">'+lbl+'</div><div class="m-val">'+val+'</div></div></div>';
+}
+function closeModal(e) {
+  if (e.target === document.getElementById('overlay'))
+    document.getElementById('overlay').classList.remove('on');
+}
+
+// ── 주소록 vcf ───────────────────────────────────────────
+function addContact(idx) {
+  var c = allCards.find(function(x) { return x.rowIndex === idx; });
+  if (!c) return;
+  var nm = c.name_ko||c.name_en||'';
+  var v  = 'BEGIN:VCARD\r\nVERSION:3.0\r\nFN:'+nm+'\r\nN:;'+nm+';;;\r\n';
+  if (c.name_en&&c.name_ko) v += 'NICKNAME:'+c.name_en+'\r\n';
+  if (c.company_ko||c.company_en) {
+    v += 'ORG:'+(c.company_ko||c.company_en);
+    if (c.dept_ko||c.dept_en) v += ';'+(c.dept_ko||c.dept_en);
+    v += '\r\n';
+  }
+  if (c.title_ko||c.title_en) v += 'TITLE:'+(c.title_ko||c.title_en)+'\r\n';
+  if (c.mobile)  v += 'TEL;TYPE=CELL:'+c.mobile+'\r\n';
+  if (c.phone)   v += 'TEL;TYPE=WORK:'+c.phone+'\r\n';
+  if (c.fax)     v += 'TEL;TYPE=FAX:'+c.fax+'\r\n';
+  if (c.email)   v += 'EMAIL;TYPE=WORK:'+c.email+'\r\n';
+  if (c.address) v += 'ADR;TYPE=WORK:;;;'+c.address+';;;\r\n';
+  if (c.website) v += 'URL:'+c.website+'\r\n';
+  if (c.memo)    v += 'NOTE:'+c.memo+'\r\n';
+  v += 'END:VCARD';
+  var blob = new Blob([v], { type: 'text/vcard;charset=utf-8' });
+  var url  = URL.createObjectURL(blob);
+  var a    = document.createElement('a');
+  a.href = url; a.download = nm+'.vcf'; a.click();
+  URL.revokeObjectURL(url);
+  toast('주소록 파일 다운로드! 파일을 열어 추가하세요');
+}
+
+// ── 삭제 ─────────────────────────────────────────────────
+function doDelete(idx) {
+  if (!confirm('이 명함을 삭제하시겠습니까?')) return;
+  fetch(API_URL, {
+    method: 'POST',
+    mode: 'cors',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'deleteCard', rowIndex: idx })
+  })
+  .then(function(r) { return r.json(); })
+  .then(function(res) {
+    if (res.error) throw new Error(res.error);
+    allCards = allCards.filter(function(x) { return x.rowIndex !== idx; });
+    allCards.forEach(function(c) { if (c.rowIndex > idx) c.rowIndex--; });
+    document.getElementById('cnt').textContent = allCards.length + '장';
+    document.getElementById('overlay').classList.remove('on');
+    toast('삭제되었습니다');
+    renderCards(allCards);
+  })
+  .catch(function(e) { toast('삭제 오류: ' + e.message); });
+}
+
+// ── 토스트 ──────────────────────────────────────────────
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  setTimeout(function() { t.classList.remove('on'); }, 3000);
+}
+</script>
+</body>
+</html>
